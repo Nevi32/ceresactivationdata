@@ -110,6 +110,30 @@
             height: 48px;
             object-fit: contain;
         }
+        
+        .honorific-badge {
+            display: inline-block;
+            background-color: #4f46e5;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+        
+        .age-badge {
+            display: inline-block;
+            background-color: #10b981;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
     </style>
 </head>
 <body class="gradient-bg min-h-screen">
@@ -204,10 +228,10 @@
                     <select id="countyFilter" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent">
                         <option value="">All Counties</option>
                     </select>
-                    <select id="statusFilter" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent">
-                        <option value="">All Status</option>
-                        <option value="pending">Pending</option>
-                        <option value="approved">Approved</option>
+                    <select id="genderFilter" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent">
+                        <option value="">All Genders</option>
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
                     </select>
                 </div>
             </div>
@@ -263,6 +287,42 @@
             }
             
             return null;
+        }
+
+        // Helper function to get value from nested or varied structures
+        function getValue(obj, key, defaultValue = '') {
+            if (!obj) return defaultValue;
+            
+            // Handle both single value and array values
+            const value = obj[key];
+            if (Array.isArray(value)) {
+                return value.length > 0 ? value.join(', ') : defaultValue;
+            }
+            return value || defaultValue;
+        }
+
+        // Helper function to get pasture types (handles both string and array)
+        function getPastureTypes(farmer) {
+            if (!farmer.feedingDetails) return 'Not specified';
+            
+            if (farmer.feedingDetails.pastureTypes && Array.isArray(farmer.feedingDetails.pastureTypes)) {
+                return farmer.feedingDetails.pastureTypes.join(', ');
+            } else if (farmer.feedingDetails.pastureType) {
+                return farmer.feedingDetails.pastureType;
+            }
+            
+            return 'Not specified';
+        }
+
+        // Helper function to get water sources (handles both string and array)
+        function getWaterSources(farmer) {
+            if (farmer.waterSources && Array.isArray(farmer.waterSources)) {
+                return farmer.waterSources.join(', ');
+            } else if (farmer.waterSource) {
+                return farmer.waterSource;
+            }
+            
+            return 'Not specified';
         }
 
         // File Upload Handlers
@@ -365,24 +425,26 @@
             // Add filter listeners
             document.getElementById('searchInput').addEventListener('input', applyFilters);
             document.getElementById('countyFilter').addEventListener('change', applyFilters);
-            document.getElementById('statusFilter').addEventListener('change', applyFilters);
+            document.getElementById('genderFilter').addEventListener('change', applyFilters);
         }
 
         function applyFilters() {
             const searchTerm = document.getElementById('searchInput').value.toLowerCase();
             const countyFilter = document.getElementById('countyFilter').value;
-            const statusFilter = document.getElementById('statusFilter').value;
+            const genderFilter = document.getElementById('genderFilter').value;
 
             filteredData = campaignData.filter(farmer => {
                 const matchesSearch = !searchTerm || 
-                    farmer.fullName?.toLowerCase().includes(searchTerm) ||
+                    (farmer.fullName?.toLowerCase().includes(searchTerm) ||
                     farmer.village?.toLowerCase().includes(searchTerm) ||
-                    farmer.ward?.toLowerCase().includes(searchTerm);
+                    farmer.ward?.toLowerCase().includes(searchTerm) ||
+                    farmer.groupName?.toLowerCase().includes(searchTerm) ||
+                    farmer.phone?.toLowerCase().includes(searchTerm));
                 
                 const matchesCounty = !countyFilter || farmer.county === countyFilter;
-                const matchesStatus = !statusFilter || farmer.status === statusFilter;
+                const matchesGender = !genderFilter || farmer.gender === genderFilter;
 
-                return matchesSearch && matchesCounty && matchesStatus;
+                return matchesSearch && matchesCounty && matchesGender;
             });
 
             renderFarmers();
@@ -444,7 +506,8 @@
             card.className = 'bg-white rounded-2xl shadow-lg overflow-hidden card-hover cursor-pointer';
             card.onclick = () => showFarmerDetail(index);
             
-            const statusColor = farmer.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800';
+            const honorific = farmer.honorific ? `<span class="honorific-badge">${farmer.honorific}</span>` : '';
+            const ageDisplay = farmer.age ? `<span class="age-badge">Age: ${farmer.age}</span>` : '';
             
             card.innerHTML = `
                 <div class="p-6">
@@ -463,11 +526,12 @@
                                 </div>
                             `}
                             <div>
-                                <h3 class="text-xl font-bold text-gray-900">${farmer.fullName || 'N/A'}</h3>
+                                <h3 class="text-xl font-bold text-gray-900">${farmer.fullName || 'N/A'} ${honorific} ${ageDisplay}</h3>
                                 <p class="text-sm text-gray-500">${farmer.groupName || 'No Group'}</p>
+                                <p class="text-xs text-gray-400">${farmer.idNumber || 'No ID'} • ${farmer.phone || 'No Phone'}</p>
                             </div>
                         </div>
-                        <span class="badge ${statusColor}">${farmer.status || 'pending'}</span>
+                        <span class="badge bg-blue-100 text-blue-800">${farmer.gender || 'N/A'}</span>
                     </div>
 
                     <!-- Quick Info -->
@@ -501,7 +565,9 @@
         }
 
         function createFarmerDetailPage(farmer, index) {
-            const statusColor = farmer.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800';
+            const honorific = farmer.honorific ? `<span class="honorific-badge">${farmer.honorific}</span>` : '';
+            const pastureTypes = getPastureTypes(farmer);
+            const waterSources = getWaterSources(farmer);
             
             return `
                 <!-- Back Button -->
@@ -528,10 +594,26 @@
                     <div class="flex-1">
                         <div class="flex items-start justify-between flex-wrap gap-4 mb-4">
                             <div>
-                                <h1 class="text-3xl sm:text-4xl font-bold text-gray-900 mb-2">${farmer.fullName || 'N/A'}</h1>
+                                <h1 class="text-3xl sm:text-4xl font-bold text-gray-900 mb-2">${farmer.fullName || 'N/A'} ${honorific}</h1>
+                                <div class="flex flex-wrap items-center gap-2 mb-2">
+                                    ${farmer.age ? `
+                                        <span class="inline-flex items-center gap-1 bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 15.546c-.523 0-1.046.151-1.5.454a2.704 2.704 0 01-3 0 2.704 2.704 0 00-3 0 2.704 2.704 0 01-3 0 2.704 2.704 0 00-3 0 2.704 2.704 0 01-3 0 2.701 2.701 0 00-1.5-.454M9 6v2m3-2v2m3-2v2M9 3h.01M12 3h.01M15 3h.01M21 21v-7a2 2 0 00-2-2H5a2 2 0 00-2 2v7h18zm-3-9v-2a2 2 0 00-2-2H8a2 2 0 00-2 2v2h12z"/>
+                                            </svg>
+                                            Age: ${farmer.age} years
+                                        </span>
+                                    ` : ''}
+                                    <span class="inline-flex items-center gap-1 bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                                        </svg>
+                                        ${farmer.gender || 'N/A'}
+                                    </span>
+                                </div>
                                 <p class="text-lg text-gray-600">${farmer.groupName || 'No Group'}</p>
+                                <p class="text-sm text-gray-500">${farmer.phone || 'No Phone'}</p>
                             </div>
-                            <span class="badge ${statusColor} text-base">${farmer.status || 'pending'}</span>
                         </div>
                     </div>
                 </div>
@@ -593,6 +675,12 @@
                         Personal Information
                     </h2>
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        ${farmer.age ? `
+                            <div class="bg-green-50 rounded-lg p-4">
+                                <p class="text-xs text-green-600 mb-1">Age</p>
+                                <p class="text-sm font-semibold text-green-900">${farmer.age} years</p>
+                            </div>
+                        ` : ''}
                         ${farmer.gender ? `
                             <div class="bg-blue-50 rounded-lg p-4">
                                 <p class="text-xs text-blue-600 mb-1">Gender</p>
@@ -621,6 +709,12 @@
                             <div class="bg-blue-50 rounded-lg p-4">
                                 <p class="text-xs text-blue-600 mb-1">Country of Origin</p>
                                 <p class="text-sm font-semibold text-blue-900">${farmer.countryOfOrigin}</p>
+                            </div>
+                        ` : ''}
+                        ${farmer.email ? `
+                            <div class="bg-blue-50 rounded-lg p-4">
+                                <p class="text-xs text-blue-600 mb-1">Email</p>
+                                <p class="text-sm font-semibold text-blue-900">${farmer.email}</p>
                             </div>
                         ` : ''}
                     </div>
@@ -867,10 +961,10 @@
                     <!-- Feeding Details -->
                     ${farmer.feedingDetails ? `
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-                            ${farmer.feedingDetails.pastureType ? `
+                            ${pastureTypes ? `
                                 <div class="bg-teal-50 rounded-lg p-4">
-                                    <p class="text-xs text-teal-600 mb-1">Pasture Type</p>
-                                    <p class="text-sm font-semibold text-teal-900">${farmer.feedingDetails.pastureType}</p>
+                                    <p class="text-xs text-teal-600 mb-1">Pasture Type(s)</p>
+                                    <p class="text-sm font-semibold text-teal-900">${pastureTypes}</p>
                                 </div>
                             ` : ''}
                             ${farmer.feedingDetails.commercialBrand ? `
@@ -888,14 +982,16 @@
                         </div>
                     ` : ''}
 
+                    <!-- Water Sources -->
+                    ${waterSources ? `
+                        <div class="bg-blue-50 rounded-lg p-4 mb-4">
+                            <p class="text-xs text-blue-600 mb-1">Water Source(s)</p>
+                            <p class="text-sm font-semibold text-blue-900">${waterSources}</p>
+                        </div>
+                    ` : ''}
+
                     <!-- Additional Farm Details -->
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        ${farmer.waterSource ? `
-                            <div class="bg-blue-50 rounded-lg p-4">
-                                <p class="text-xs text-blue-600 mb-1">Water Source</p>
-                                <p class="text-sm font-semibold text-blue-900">${farmer.waterSource}</p>
-                            </div>
-                        ` : ''}
                         ${farmer.pastureLandSize ? `
                             <div class="bg-blue-50 rounded-lg p-4">
                                 <p class="text-xs text-blue-600 mb-1">Pasture Land Size</p>
@@ -920,7 +1016,7 @@
                     ${farmer.feedingChallenges ? `
                         <div class="bg-red-50 rounded-xl p-6 mt-4 border-l-4 border-red-400">
                             <h3 class="text-lg font-semibold text-red-900 mb-2">Feeding Challenges</h3>
-                            <p class="text-sm text-red-800">${farmer.feedingChallenges}</p>
+                            <p class="text-sm text-red-800 whitespace-pre-line">${farmer.feedingChallenges}</p>
                         </div>
                     ` : ''}
                 </div>
